@@ -12,8 +12,8 @@
 | Week | 技術 | 状態 |
 |---|---|---|
 | 1 | Docker | 実装済み。CI上で実地検証まで完了（ローカル実行は再起動待ち） |
-| 2 | AWS | 未着手 |
-| 3 | CI/CD (GitHub Actions) | 前倒しで着手。型/Lint/ビルド・Dockerイメージ起動・compose疎通を自動検証中 |
+| 2 | AWS | Terraformで構成を実装・validate通過。apply は再起動後 |
+| 3 | CI/CD (GitHub Actions) | 4ジョブ稼働中（型/Lint/ビルド・Docker起動・compose疎通・Terraform検証）。AWS自動デプロイは未 |
 | 4 | Ruby on Rails | 未着手 |
 | 5 | Go | 未着手 |
 
@@ -26,6 +26,7 @@ web/                    Next.js 16 アプリ（本番リポジトリの web/ を
 db/init/                ローカルPostgresの初期化SQL
   00_supabase_compat.sql  素のPostgresでSupabase前提のスキーマを流すための互換シム
   01_schema.sql           web/supabase/schema.sql の複製
+infra/                  AWS構成（Terraform）＋デプロイ用スクリプト
 docker-compose.yml          ベース＝本番相当（runner ステージ）
 docker-compose.override.yml 開発用の上書き（dev ステージ＋ホットリロード）
 docs/学習記録.md            何をやって何が分かったかの記録

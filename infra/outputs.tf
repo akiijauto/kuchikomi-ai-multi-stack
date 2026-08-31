@@ -8,6 +8,11 @@ output "ecs_cluster" {
   value       = aws_ecs_cluster.main.name
 }
 
+output "ecs_service" {
+  description = "ECSサービス名。var.name を変えてもスクリプトが壊れないよう出力する"
+  value       = aws_ecs_service.app.name
+}
+
 output "assets_bucket" {
   description = "S3バケット名"
   value       = aws_s3_bucket.assets.id

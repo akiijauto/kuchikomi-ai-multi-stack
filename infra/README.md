@@ -38,15 +38,16 @@ terraform plan
 terraform apply
 ```
 
-イメージを ECR へ push:
+イメージのビルド〜デプロイ〜状態確認は3つのスクリプトにまとめてある:
 
 ```bash
-ECR=$(terraform output -raw ecr_repository_url)
-aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin "${ECR%%/*}"
-docker build -t "$ECR:latest" ../web
-docker push "$ECR:latest"
-aws ecs update-service --cluster $(terraform output -raw ecs_cluster) --service kuchikomi --force-new-deployment
+./deploy.sh   # ビルド → ECRへpush → ECSに再デプロイ → 安定するまで待つ
+./status.sh   # 動いているタスクのパブリックIPを調べてヘルスチェック
+./logs.sh     # CloudWatch Logs を追う（起動しないときの一次切り分け）
 ```
+
+ALBを置いていないため**タスクの再起動ごとにIPが変わる**。`status.sh` は
+ECS→ENI→EC2 と3つのAPIを辿ってIPを出す（手作業だと毎回面倒なため）。
 
 ## 作業が終わったら必ず消す
 
