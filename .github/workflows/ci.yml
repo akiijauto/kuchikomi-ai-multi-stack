@@ -1,0 +1,97 @@
+name: CI
+
+# ローカルにDockerが無くてもDockerfile/composeを実地検証できるようにする。
+# GitHubのランナー(ubuntu-latest)にはDockerが入っているため、
+# 「イメージが本当にビルドできるか」「起動して応答するか」をここで確かめる。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  app:
+    name: 型チェック / Lint / ビルド
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: 型チェック
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: 本番ビルド
+        # NEXT_PUBLIC_* はビルド時に埋め込まれる公開値。CIではダミーで十分
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+      - name: standalone出力が自己完結しているか
+        run: test -f .next/standalone/server.js
+
+  docker:
+    name: Dockerイメージのビルドと起動確認
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: イメージをビルド
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          target: runner
+          load: true
+          tags: kuchikomi-ai:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: イメージサイズを記録
+        run: docker image ls kuchikomi-ai:ci
+      - name: 起動してヘルスチェックが通るか
+        run: |
+          docker run -d --name app -p 3000:3000 kuchikomi-ai:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/api/health; then
+              echo; echo "ヘルスチェック応答あり"; exit 0
+            fi
+            sleep 2
+          done
+          echo "30回試して応答なし。コンテナログ:"; docker logs app; exit 1
+      - name: 非rootで動いているか
+        run: test "$(docker exec app id -u)" != "0"
+      - name: 後片付け
+        if: always()
+        run: docker rm -f app || true
+
+  compose:
+    name: docker compose の疎通確認（web + Postgres）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 本番相当モードで起動（override.ymlを読ませない）
+        run: docker compose -f docker-compose.yml up -d --build --wait
+      - name: web が応答するか
+        run: curl -fsS http://localhost:3000/api/health
+      - name: 初期化SQLでテーブルが作られたか
+        run: |
+          docker compose -f docker-compose.yml exec -T db \
+            psql -U postgres -d kuchikomi -c '\dt public.*'
+      - name: 上限チェック関数が作られたか
+        run: |
+          docker compose -f docker-compose.yml exec -T db \
+            psql -U postgres -d kuchikomi -tAc \
+            "select proname from pg_proc where proname='increment_usage';" | grep -q increment_usage
+      - name: 失敗時のログ
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --no-color
+      - name: 後片付け
+        if: always()
+        run: docker compose -f docker-compose.yml down -v || true
