@@ -17,8 +17,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -42,9 +42,14 @@ jobs:
     name: Dockerイメージのビルドと起動確認
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: イメージをビルド
+        # ビルドサマリーのアーティファクト添付を無効化。
+        # 有効だと CreateArtifact が「Artifact storage quota has been hit」で
+        # 毎回警告になる（ビルド自体は成功する）。CIの出力を綺麗に保つため切る。
+        env:
+          DOCKER_BUILD_SUMMARY: "false"
         uses: docker/build-push-action@v6
         with:
           context: ./web
@@ -75,7 +80,7 @@ jobs:
     name: docker compose の疎通確認（web + Postgres）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: 本番相当モードで起動（override.ymlを読ませない）
         run: docker compose -f docker-compose.yml up -d --build --wait
       - name: web が応答するか

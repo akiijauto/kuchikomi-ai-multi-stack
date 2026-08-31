@@ -11,9 +11,9 @@
 
 | Week | 技術 | 状態 |
 |---|---|---|
-| 1 | Docker | 実装済み（未検証：Docker Desktop 導入待ち） |
+| 1 | Docker | 実装済み。CI上で実地検証まで完了（ローカル実行は再起動待ち） |
 | 2 | AWS | 未着手 |
-| 3 | CI/CD (GitHub Actions) | 未着手 |
+| 3 | CI/CD (GitHub Actions) | 前倒しで着手。型/Lint/ビルド・Dockerイメージ起動・compose疎通を自動検証中 |
 | 4 | Ruby on Rails | 未着手 |
 | 5 | Go | 未着手 |
 
