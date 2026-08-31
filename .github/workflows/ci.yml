@@ -100,3 +100,21 @@ jobs:
       - name: 後片付け
         if: always()
         run: docker compose -f docker-compose.yml down -v || true
+
+  terraform:
+    name: Terraform の書式と検証
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+      - name: 書式が揃っているか
+        run: terraform fmt -check -recursive
+      - name: 初期化（AWS認証は不要。プロバイダの取得のみ）
+        run: terraform init -backend=false -input=false
+      - name: 構成の検証
+        run: terraform validate -no-color

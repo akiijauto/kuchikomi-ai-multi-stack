@@ -1,0 +1,13 @@
+# このファイルを terraform.tfvars にコピーして値を入れる（.gitignore 済み）。
+# 秘密値をここに書くため、絶対にコミットしない。
+
+# 動作確認だけなら自分のIPに絞る。調べ方: curl -s https://checkip.amazonaws.com
+allowed_cidr = "0.0.0.0/0"
+
+# 空のままならアプリはモックモードで動く（AI課金ゼロで疎通確認できる）
+anthropic_api_key = ""
+
+# Supabaseを本番と同じものに向ける場合のみ設定
+supabase_url              = ""
+supabase_anon_key         = ""
+supabase_service_role_key = ""
