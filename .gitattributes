@@ -1,0 +1,9 @@
+# Windowsのチェックアウトで CRLF になるとコンテナ内(Linux)で壊れるファイルを LF に固定する。
+# 特に Dockerfile / シェルスクリプト / DB初期化SQL。
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
