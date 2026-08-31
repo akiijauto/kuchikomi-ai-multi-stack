@@ -1,0 +1,52 @@
+# ベース定義＝本番相当（runner ステージ、バインドマウント無し）。
+#   docker compose up                       → override.yml が自動で重なり「開発モード」
+#   docker compose -f docker-compose.yml up → このファイルだけ＝「本番相当モード」
+name: kuchikomi-ai
+
+services:
+  web:
+    build:
+      context: ./web
+      target: runner
+      args:
+        # NEXT_PUBLIC_* はビルド時にJSへ焼き込まれるので、実行時envではなくビルド引数で渡す
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-dummy-anon-key-for-build}
+        NEXT_PUBLIC_OPERATOR_NAME: ${NEXT_PUBLIC_OPERATOR_NAME:-}
+        NEXT_PUBLIC_OPERATOR_EMAIL: ${NEXT_PUBLIC_OPERATOR_EMAIL:-}
+    # サーバー側だけで使う鍵（ANTHROPIC_API_KEY / STRIPE_* / SERVICE_ROLE）は実行時に注入する。
+    # ファイルが無くても起動できるよう required: false（Compose v2.24 以降の記法）。
+    env_file:
+      - path: ./web/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/kuchikomi
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kuchikomi
+    ports:
+      # ホスト側は 5433。ローカルに別のPostgresが居ても衝突しないようにする
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # 初回起動時のみ実行される。スキーマを作り直すときは docker compose down -v
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kuchikomi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db-data:

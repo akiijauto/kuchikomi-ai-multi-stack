@@ -1,0 +1,15 @@
+# 開発用の上書き。`docker compose up` で自動的に読み込まれる。
+# ソースをバインドマウントしてホットリロードを効かせる。
+services:
+  web:
+    build:
+      target: dev
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"   # Windowsのバインドマウントはinotifyが飛ばないためポーリング
+    volumes:
+      - ./web:/app
+      # コンテナ内でnpm ciした成果物を、ホストの中身で上書きさせないための無名ボリューム
+      - /app/node_modules
+      - /app/.next
+    restart: "no"

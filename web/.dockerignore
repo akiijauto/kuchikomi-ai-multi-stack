@@ -1,0 +1,23 @@
+# ビルドコンテキストを小さくし、秘密情報をイメージに入れない
+node_modules
+.next
+out
+dist
+npm-debug.log*
+
+# 秘密情報（.env.example のみ許可）
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README.md
+AGENTS.md
+CLAUDE.md
+.claude
+tsconfig.tsbuildinfo
+.DS_Store
+Thumbs.db

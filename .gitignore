@@ -1,0 +1,22 @@
+# 秘密情報は絶対にコミットしない
+.env
+.env.*
+!.env.example
+
+# 依存・ビルド成果物
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Terraform（Week2で使用）
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# OS・エディタ
+.DS_Store
+Thumbs.db
