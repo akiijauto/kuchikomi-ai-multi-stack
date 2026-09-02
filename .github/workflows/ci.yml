@@ -101,6 +101,43 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml down -v || true
 
+  compose-dev:
+    name: 開発モードのホットリロード確認（override.yml 側）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: 開発モードで起動（override.yml が自動で重なる）
+        # dev ステージには HEALTHCHECK が無いので --wait は使えない。db だけ待って web は自前でポーリングする
+        run: |
+          docker compose up -d --build
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/health; then echo; exit 0; fi
+            sleep 2
+          done
+          echo "起動せず。ログ:"; docker compose logs --no-color web; exit 1
+      - name: 変更前の応答を記録
+        run: curl -fsS http://localhost:3000/api/health | tee before.json
+      - name: ホスト側のソースを書き換える（バインドマウント越し）
+        run: |
+          sed -i 's/status: "ok"/status: "ok", reloaded: true/' web/src/app/api/health/route.ts
+          grep -n reloaded web/src/app/api/health/route.ts
+      - name: 再ビルドや再起動なしで応答が変わるか
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -fsS http://localhost:3000/api/health || true)
+            if echo "$body" | grep -q '"reloaded":true'; then
+              echo "$body"; echo "ホットリロード成立（${i}回目の確認で反映）"; exit 0
+            fi
+            sleep 2
+          done
+          echo "60秒待っても反映されず。ログ:"; docker compose logs --no-color web; exit 1
+      - name: 失敗時のログ
+        if: failure()
+        run: docker compose logs --no-color
+      - name: 後片付け
+        if: always()
+        run: docker compose down -v || true
+
   terraform:
     name: Terraform の書式と検証
     runs-on: ubuntu-latest
