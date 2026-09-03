@@ -209,19 +209,26 @@ jobs:
           cache-to: type=gha,mode=max
       - name: 起動する（TLS終端が無い構成なのでSSL強制は切る）
         run: |
-          docker run -d --name rails --network host             -e RAILS_ENV=production             -e RAILS_FORCE_SSL=false             -e DEMO_MODE=1             -e SECRET_KEY_BASE=$(openssl rand -hex 32)             -e SUPABASE_JWT_SECRET=ci-demo-secret             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kuchikomi             kuchikomi-rails:ci
+          # ポート80は使わない。イメージは非rootで動くため、ホストネットワークでは
+          # 1024未満を掴めない（ホスト側の ip_unprivileged_port_start が 1024）。
+          # Thrusterの待ち受けを8080に、その先のRailsを3000にずらす。
+          docker run -d --name rails --network host             -e RAILS_ENV=production             -e RAILS_FORCE_SSL=false             -e DEMO_MODE=1             -e HTTP_PORT=8080             -e TARGET_PORT=3000             -e SECRET_KEY_BASE=$(openssl rand -hex 32)             -e SUPABASE_JWT_SECRET=ci-demo-secret             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kuchikomi             kuchikomi-rails:ci
+          # 待ちループは必ず「起動しなかった」で落ちるように書く。
+          # `curl || sleep` だけだと最後のsleepが成功して、
+          # 一度も応答が無くてもステップが緑になる（2026-09-03に実際に踏んだ）。
           for i in $(seq 1 40); do
-            curl -fsS http://localhost/api/health && break || sleep 2
+            if curl -fsS http://localhost:8080/api/health; then echo; exit 0; fi
+            sleep 2
           done
-          echo
+          echo "80秒待っても応答なし。ログ:"; docker logs rails; exit 1
       - name: 非rootで動いているか
         run: test "$(docker exec rails id -u)" != "0"
       - name: デモ画面が配信されるか
-        run: curl -fsS http://localhost/demo.html | grep -q "Rails API デモ"
+        run: curl -fsS http://localhost:8080/demo.html | grep -q "Rails API デモ"
       - name: デモ用トークンを受け取り、生成まで通るか
         run: |
-          TOKEN=$(curl -fsS -X POST http://localhost/api/demo/token | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
-          BODY=$(curl -fsS -X POST http://localhost/api/generate             -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"             -d '{"review":{"reviewText":"スープが本当に美味しかったです","rating":5}}')
+          TOKEN=$(curl -fsS -X POST http://localhost:8080/api/demo/token | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+          BODY=$(curl -fsS -X POST http://localhost:8080/api/generate             -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"             -d '{"review":{"reviewText":"スープが本当に美味しかったです","rating":5}}')
           echo "$BODY" | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
