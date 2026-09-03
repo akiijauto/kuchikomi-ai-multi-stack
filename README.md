@@ -11,11 +11,12 @@
 
 | Week | 技術 | 状態 |
 |---|---|---|
-| 1 | Docker | 実装済み。CI上で実地検証まで完了（ローカル実行は再起動待ち） |
-| 2 | AWS | Terraformで構成を実装・validate通過。apply は再起動後 |
-| 3 | CI/CD (GitHub Actions) | 4ジョブ稼働中（型/Lint/ビルド・Docker起動・compose疎通・Terraform検証）。AWS自動デプロイは未 |
-| 4 | Ruby on Rails | 未着手 |
-| 5 | Go | 未着手 |
+| 1 | Docker | 完了。本番相当・開発モード（ホットリロード）ともCI上で実地検証済み |
+| 2 | AWS | 完了。apply → デプロイ → 動作確認 → destroy を2周し、残存ゼロを実測 |
+| 3 | CI/CD (GitHub Actions) | 完了。CI 9ジョブ＋ OIDC による AWS 自動デプロイ |
+| 4 | Ruby on Rails | 完了。既存APIを再実装し、コンテナ化してAWSで稼働・デモ画面まで確認 |
+| 5 | Go | 実装・テスト・CI 完了（`api-go/`）。AWSデプロイは未実施 |
+| 6 | 棚卸し | 未着手 |
 
 ## 構成
 
@@ -23,6 +24,8 @@
 web/                    Next.js 16 アプリ（本番リポジトリの web/ を git ls-files 起点で複製）
   Dockerfile            deps → builder → runner / dev の4ステージ
   .dockerignore
+api-rails/              Ruby on Rails 実装（Week4）
+api-go/                 Go 実装（Week5）。net/http のみ、ルータのライブラリは使わない
 db/init/                ローカルPostgresの初期化SQL
   00_supabase_compat.sql  素のPostgresでSupabase前提のスキーマを流すための互換シム
   01_schema.sql           web/supabase/schema.sql の複製

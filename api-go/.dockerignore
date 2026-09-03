@@ -1,0 +1,7 @@
+# ビルドに要らないものを送らない（コンテキスト削減＋秘密情報をイメージに入れない）
+.env
+.env.*
+*_test.go
+Dockerfile
+.dockerignore
+README.md

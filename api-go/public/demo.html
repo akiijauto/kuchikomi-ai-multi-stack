@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>クチコミ返信AI — Go API デモ</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin:0; font:16px/1.7 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;
+         background:#f7f7f8; color:#1a1a1a; }
+  @media (prefers-color-scheme: dark){ body{ background:#16171a; color:#e9e9ea; } }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:#6b6b70; margin:0 0 28px; font-size:14px; }
+  @media (prefers-color-scheme: dark){ .sub{ color:#9a9aa0; } }
+  .card { background:#fff; border:1px solid #e3e3e6; border-radius:12px; padding:20px; margin-bottom:20px; }
+  @media (prefers-color-scheme: dark){ .card{ background:#1f2024; border-color:#33343a; } }
+  label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; }
+  textarea, select { width:100%; box-sizing:border-box; font:inherit; padding:10px 12px;
+    border:1px solid #cfcfd4; border-radius:8px; background:transparent; color:inherit; }
+  @media (prefers-color-scheme: dark){ textarea,select{ border-color:#44454c; } }
+  textarea { min-height:92px; resize:vertical; }
+  .row { display:flex; gap:12px; align-items:flex-end; margin-top:14px; flex-wrap:wrap; }
+  .row > div { flex:0 0 130px; }
+  button { font:inherit; font-weight:600; padding:10px 22px; border:0; border-radius:8px;
+    background:#1a1a1a; color:#fff; cursor:pointer; }
+  @media (prefers-color-scheme: dark){ button{ background:#e9e9ea; color:#16171a; } }
+  button[disabled] { opacity:.5; cursor:default; }
+  .reply { border-left:3px solid #7a7a80; padding:2px 0 2px 14px; margin:16px 0; }
+  .reply b { display:block; font-size:13px; color:#6b6b70; margin-bottom:4px; }
+  @media (prefers-color-scheme: dark){ .reply b{ color:#9a9aa0; } }
+  .reply p { margin:0; white-space:pre-wrap; }
+  .meta { font-size:13px; color:#6b6b70; margin-top:18px; }
+  .err { color:#b3261e; }
+  code { background:rgba(127,127,127,.15); padding:1px 5px; border-radius:4px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>クチコミ返信AI — Go API デモ</h1>
+  <p class="sub">
+    この画面は Go（標準ライブラリの net/http）で書いた API を呼んでいます。
+    元は Next.js の API Routes、次に Ruby on Rails で動かした処理を、同じデータベース定義のまま3つ目の言語で実装したものです。
+  </p>
+
+  <div class="card">
+    <label for="review">口コミ本文</label>
+    <textarea id="review">スープが本当に美味しかったです。店員さんの対応も丁寧で気持ちよく過ごせました。</textarea>
+    <div class="row">
+      <div>
+        <label for="rating">星</label>
+        <select id="rating">
+          <option value="5">★5</option><option value="4">★4</option>
+          <option value="3">★3</option><option value="2">★2</option><option value="1">★1</option>
+        </select>
+      </div>
+      <button id="go">返信案を作る</button>
+    </div>
+  </div>
+
+  <div id="out"></div>
+
+  <p class="meta">
+    死活監視: <code>/api/health</code>　生成: <code>POST /api/generate</code><br>
+    認証は Supabase が発行するトークンを Go 側で検証しています。
+    この画面はデモ用の入口から短時間だけ有効なトークンを受け取って呼び出しています。
+  </p>
+</div>
+<script>
+const out = document.getElementById("out");
+const btn = document.getElementById("go");
+
+async function run() {
+  btn.disabled = true;
+  out.innerHTML = '<div class="card">生成中…</div>';
+  try {
+    const t = await fetch("/api/demo/token", { method: "POST" });
+    if (!t.ok) throw new Error("デモ用トークンを取得できませんでした（DEMO_MODE が無効の可能性）");
+    const { token } = await t.json();
+
+    const res = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({
+        review: {
+          reviewText: document.getElementById("review").value,
+          rating: Number(document.getElementById("rating").value)
+        }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+
+    const note = data.mock
+      ? "APIキーが設定されていないため、デモ用の定型文を返しています。経路そのものは本番と同じです。"
+      : "Claude で生成しています。";
+    out.innerHTML = '<div class="card">' +
+      data.replies.map(r =>
+        '<div class="reply"><b>' + esc(r.label) + '</b><p>' + esc(r.text) + '</p></div>'
+      ).join("") +
+      '<p class="meta">' + note + '　今月の利用: ' + data.usage.used + " / " + data.usage.limit + '</p></div>';
+  } catch (e) {
+    out.innerHTML = '<div class="card err">' + esc(e.message) + '</div>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+btn.addEventListener("click", run);
+</script>
+</body>
+</html>
