@@ -126,7 +126,7 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer",
     ]
-    resources = [aws_ecr_repository.app.arn]
+    resources = [aws_ecr_repository.app.arn, aws_ecr_repository.rails.arn]
   }
 
   # タスク定義は latest を参照している。新しい latest を引かせるには
@@ -138,7 +138,7 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecs:UpdateService",
       "ecs:DescribeServices",
     ]
-    resources = [aws_ecs_service.app.id]
+    resources = [aws_ecs_service.app.id, aws_ecs_service.rails.id]
   }
 
   statement {

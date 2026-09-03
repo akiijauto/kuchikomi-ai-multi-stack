@@ -9,6 +9,11 @@ name: Deploy to AWS
 on:
   workflow_dispatch:
     inputs:
+      component:
+        description: "デプロイ対象"
+        type: choice
+        options: [rails, web]
+        default: rails
       health_check:
         description: "デプロイ後にタスクの公開IPへヘルスチェックする"
         type: boolean
@@ -43,18 +48,32 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Railsイメージへスキーマ定義を取り込む
+        if: inputs.component == 'rails'
+        # SQLの正本は1箇所（db/init と web/supabase）に置いたまま、
+        # ビルドコンテキストへコピーするだけにする。リポジトリには複製を残さない。
+        run: |
+          mkdir -p api-rails/db/bootstrap
+          cp db/init/00_supabase_compat.sql api-rails/db/bootstrap/00_supabase_compat.sql
+          cp web/supabase/schema.sql        api-rails/db/bootstrap/10_schema.sql
+          ls -l api-rails/db/bootstrap
+
       - name: イメージをビルドしてpush
         env:
           DOCKER_BUILD_SUMMARY: "false"
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-          REPO: ${{ vars.ECR_REPOSITORY || 'kuchikomi' }}
+          COMPONENT: ${{ inputs.component }}
         run: |
           TAG=$(git rev-parse --short HEAD)
-          # latest はタスク定義が参照している可動先。$TAG は「今動いているのがどのコードか」を追うため
-          docker build --target runner \
-            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}" \
-            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key-for-build' }}" \
-            -t "$REGISTRY/$REPO:$TAG" -t "$REGISTRY/$REPO:latest" ./web
+          BASE="${{ vars.ECR_REPOSITORY || 'kuchikomi' }}"
+          # latest はタスク定義が参照している可動先。$TAG は追跡用
+          if [ "$COMPONENT" = "rails" ]; then
+            REPO="${BASE}-rails"
+            docker build -t "$REGISTRY/$REPO:$TAG" -t "$REGISTRY/$REPO:latest" ./api-rails
+          else
+            REPO="$BASE"
+            docker build --target runner               --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}"               --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key-for-build' }}"               -t "$REGISTRY/$REPO:$TAG" -t "$REGISTRY/$REPO:latest" ./web
+          fi
           docker push "$REGISTRY/$REPO:$TAG"
           docker push "$REGISTRY/$REPO:latest"
           echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
@@ -62,7 +81,7 @@ jobs:
       - name: ECSに新しいタスクを起動させる
         env:
           CLUSTER: ${{ vars.ECS_CLUSTER || 'kuchikomi' }}
-          SERVICE: ${{ vars.ECS_SERVICE || 'kuchikomi' }}
+          SERVICE: ${{ inputs.component == 'rails' && format('{0}-rails', vars.ECS_SERVICE || 'kuchikomi') || (vars.ECS_SERVICE || 'kuchikomi') }}
         run: |
           aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
             --force-new-deployment --no-cli-pager >/dev/null
@@ -73,8 +92,9 @@ jobs:
         if: inputs.health_check
         env:
           CLUSTER: ${{ vars.ECS_CLUSTER || 'kuchikomi' }}
+          SERVICE: ${{ inputs.component == 'rails' && format('{0}-rails', vars.ECS_SERVICE || 'kuchikomi') || (vars.ECS_SERVICE || 'kuchikomi') }}
         run: |
-          TASK=$(aws ecs list-tasks --cluster "$CLUSTER" --query 'taskArns[0]' --output text)
+          TASK=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --query 'taskArns[0]' --output text)
           ENI=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \
             --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' --output text)
           IP=$(aws ec2 describe-network-interfaces --network-interface-ids "$ENI" \

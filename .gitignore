@@ -27,3 +27,6 @@ api-rails/tmp/*
 !api-rails/log/.keep
 !api-rails/tmp/.keep
 api-rails/storage/*
+
+# ビルド時に取り込む（正本は db/init と web/supabase）
+api-rails/db/bootstrap/*.sql

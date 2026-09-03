@@ -58,3 +58,19 @@ variable "supabase_service_role_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "rails_desired_count" {
+  description = "Rails APIのタスク数。0にすると構成を残したまま課金を止められる"
+  type        = number
+  default     = 1
+}
+
+variable "rails_demo_mode" {
+  description = <<-EOT
+    デモ用トークン発行の口を開けるか。
+    これは「誰でもログイン済みになれる入口」なので、
+    公開範囲を自分のIPに絞っているときだけ true にする。
+  EOT
+  type        = bool
+  default     = false
+}

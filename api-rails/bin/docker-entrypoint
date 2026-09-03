@@ -1,5 +1,11 @@
 #!/bin/bash -e
 
+# RDSは外部から接続できないため、スキーマの投入はこのコンテナ自身が行う。
+# 明示的に LOAD_SCHEMA=1 を渡したときだけ走らせる（毎回流す必要はないので既定は無効）。
+if [ "${LOAD_SCHEMA}" = "1" ]; then
+  ./bin/rails db:bootstrap
+fi
+
 # 既定の db:prepare は実行しない。
 # このアプリはRailsのマイグレーションを持たず、テーブル定義の正本は
 # web/supabase/schema.sql 側にある。ここで db:prepare を走らせると

@@ -45,3 +45,13 @@ output "github_deploy_role_arn" {
   description = "GitHub Actions の deploy ワークフローに渡すロール。リポジトリ変数 AWS_DEPLOY_ROLE_ARN へ設定する"
   value       = aws_iam_role.github_deploy.arn
 }
+
+output "rails_ecr_repository_url" {
+  description = "Rails API の docker push 先"
+  value       = aws_ecr_repository.rails.repository_url
+}
+
+output "rails_ecs_service" {
+  description = "Rails API のECSサービス名"
+  value       = aws_ecs_service.rails.name
+}
