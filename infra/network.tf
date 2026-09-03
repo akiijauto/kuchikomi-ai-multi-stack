@@ -60,18 +60,24 @@ resource "aws_security_group" "app" {
   tags = { Name = "${var.name}-app" }
 }
 
+# セキュリティグループのルール説明は AWS 側で使える文字が
+# a-zA-Z0-9 と一部記号だけに限られており、日本語を入れると
+# InvalidParameterValue で拒否される（2026-09-03に実測）。
+# 説明は英数字にし、意図はこのコメントに書く。
+# ↓ アプリへの直接アクセス。ロードバランサを置かない構成のため。
 resource "aws_vpc_security_group_ingress_rule" "app_http" {
   security_group_id = aws_security_group.app.id
-  description       = "アプリへの直接アクセス（ALBを置かないため）"
+  description       = "direct access to app port (no load balancer)"
   cidr_ipv4         = var.allowed_cidr
   from_port         = 3000
   to_port           = 3000
   ip_protocol       = "tcp"
 }
 
+# ↓ コンテナイメージの取得と、外部サービスへの外向き通信のため。
 resource "aws_vpc_security_group_egress_rule" "app_all" {
   security_group_id = aws_security_group.app.id
-  description       = "ECRからのpull・Supabase/Anthropicへの外向き通信"
+  description       = "image pull and outbound to external services"
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "-1"
 }

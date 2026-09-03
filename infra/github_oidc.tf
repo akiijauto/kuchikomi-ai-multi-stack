@@ -127,7 +127,8 @@ data "aws_iam_policy_document" "github_deploy" {
 resource "aws_iam_role" "github_deploy" {
   name               = "${var.name}-github-deploy"
   assume_role_policy = data.aws_iam_policy_document.github_assume.json
-  description        = "GitHub Actions がイメージをpushしECSを再デプロイするためのロール"
+  # AWSへ送る説明文は英数字のみ（日本語はIAM側の検証で弾かれる。2026-09-03実測）
+  description = "role for GitHub Actions to push images and redeploy the service"
 }
 
 resource "aws_iam_role_policy" "github_deploy" {
