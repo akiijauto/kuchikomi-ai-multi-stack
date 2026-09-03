@@ -16,6 +16,25 @@ variable "github_repository" {
   default     = "akiijauto/kuchikomi-ai-multi-stack"
 }
 
+# 数値ID。秘密ではなく公開情報で、付け替えもできない。調べ方:
+#   gh api repos/<owner>/<repo> --jq '"repo_id=\(.id) owner_id=\(.owner.id)"'
+variable "github_owner_id" {
+  description = "GitHubの所有者ID（数値）"
+  type        = string
+  default     = "288162362"
+}
+
+variable "github_repository_id" {
+  description = "GitHubのリポジトリID（数値）"
+  type        = string
+  default     = "1352683534"
+}
+
+locals {
+  github_owner     = split("/", var.github_repository)[0]
+  github_repo_name = split("/", var.github_repository)[1]
+}
+
 variable "create_github_oidc_provider" {
   description = <<-EOT
     OIDCプロバイダを作るか。1アカウントに1つしか作れないため、
@@ -70,10 +89,20 @@ data "aws_iam_policy_document" "github_assume" {
 
     # ここを省くと「GitHub上のどのリポジトリからでも」このロールを取れてしまう。
     # 対象リポジトリのワークフローだけに絞る。
+    #
+    # 2026-09-03に踏んだ罠: GitHubの sub の形は1つではない。実測すると
+    #   repo:akiijauto@288162362/kuchikomi-ai-multi-stack@1352683534:ref:refs/heads/main
+    # のように所有者IDとリポジトリIDが埋め込まれた新形式だった。
+    # 旧形式（IDなし）だけを書いていたため一致せず、全て弾かれていた。
+    # 数値IDは名前と違って**付け替えができない**ので、こちらの方が本来は厳しい条件になる。
+    # 新旧どちらでも通るように両方を許可する（値が複数あるとORで評価される）。
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:*"]
+      values = [
+        "repo:${var.github_repository}:*",
+        "repo:${local.github_owner}@${var.github_owner_id}/${local.github_repo_name}@${var.github_repository_id}:*",
+      ]
     }
   }
 }
