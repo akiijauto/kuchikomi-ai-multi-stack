@@ -1,0 +1,18 @@
+# Next.js版と同じデータベース定義（web/supabase/schema.sql）へ接続する。
+# Railsのマイグレーションでテーブルを作り直すことはしない。
+# 「同じスキーマに対して別言語の実装を載せる」のがこの演習の主旨のため。
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  url: <%= ENV.fetch("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/kuchikomi") %>
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+  url: <%= ENV.fetch("TEST_DATABASE_URL", ENV.fetch("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/kuchikomi")) %>
+
+production:
+  <<: *default

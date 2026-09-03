@@ -138,6 +138,44 @@ jobs:
         if: always()
         run: docker compose down -v || true
 
+  rails:
+    name: Rails APIのテスト（Next.js版と同じスキーマに対して）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api-rails
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kuchikomi
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # RailsのマイグレーションではなくSQL側の定義を使う。
+      # Next.js版と同じ web/supabase/schema.sql を流し込んでから実行する。
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kuchikomi
+      RAILS_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: api-rails
+      - name: Next.js版と同じスキーマを流し込む
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../db/init/00_supabase_compat.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../web/supabase/schema.sql
+      - name: 自動読み込みの検査
+        run: bundle exec rails zeitwerk:check
+      - name: RSpec
+        run: bundle exec rspec --format documentation
+
   terraform:
     name: Terraform の書式と検証
     runs-on: ubuntu-latest

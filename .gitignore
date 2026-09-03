@@ -20,3 +20,10 @@ dist/
 # OS・エディタ
 .DS_Store
 Thumbs.db
+
+# Rails の生成物
+api-rails/log/*
+api-rails/tmp/*
+!api-rails/log/.keep
+!api-rails/tmp/.keep
+api-rails/storage/*
