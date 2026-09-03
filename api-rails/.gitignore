@@ -1,0 +1,27 @@
+# rails new を --skip-git で実行したため .gitignore が作られず、
+# config/master.key が追跡されてしまった（2026-09-03 に公開ゲートが検出）。
+# Rails標準の除外に戻す。
+
+# 一時ファイル・ログ
+/.bundle
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+/tmp/pids/*
+!/tmp/pids/.keep
+/storage/*
+!/storage/.keep
+
+# 環境ごとの秘密情報。リポジトリには絶対に置かない
+/config/master.key
+/config/credentials/*.key
+/.env
+/.env.*
+
+# エディタ・OS
+.DS_Store
+
+# Ignore key files for decrypting credentials and more.
+/config/*.key
+
