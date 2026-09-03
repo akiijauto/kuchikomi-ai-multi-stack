@@ -25,12 +25,22 @@ variable "create_github_oidc_provider" {
   default     = true
 }
 
+# 拇印を定数で書かない理由（2026-09-03に実際に踏んだ）:
+#   ここに DigiCert 時代の拇印をベタ書きしていたところ、GitHubの証明書が
+#   Let's Encrypt に変わっていて一致せず、
+#   「Not authorized to perform sts:AssumeRoleWithWebIdentity」で全て弾かれた。
+#   証明書は更新されるものなので、固定値ではなく実物から取る。
+data "tls_certificate" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
 resource "aws_iam_openid_connect_provider" "github" {
   count = var.create_github_oidc_provider ? 1 : 0
 
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+  # チェーン上の証明書すべての拇印を登録する（中間・ルートのどれで検証されても通るように）
+  thumbprint_list = data.tls_certificate.github.certificates[*].sha1_fingerprint
 }
 
 data "aws_iam_openid_connect_provider" "github" {

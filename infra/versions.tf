@@ -10,6 +10,11 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    # GitHubのOIDC証明書の拇印を実物から取るために使う（固定値を書かないため）
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
   # 学習用のため state はローカル。実務では S3 + DynamoDB のリモートstateにする
