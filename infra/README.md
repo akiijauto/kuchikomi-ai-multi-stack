@@ -50,6 +50,19 @@ aws sts get-caller-identity   # 自分が誰として繋がっているかを確
 アクセスキーは AWS コンソールの `IAM → ユーザー → セキュリティ認証情報` で作る。
 **ルートユーザーのキーは作らない**（権限が強すぎ、制限もかけられないため）。
 
+**AWS CLI が入っていなくても plan/apply はできる。** Terraform は CLI を呼ばず、
+自分で認証情報を読む。CLI が無ければ `~/.aws/credentials` を手で書くか、環境変数で渡す:
+
+```bash
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_DEFAULT_REGION=ap-northeast-1
+terraform plan
+```
+
+CLI が要るのは `status.sh` / `logs.sh`（動いているタスクを調べる側）だけ。
+デプロイ本体は GitHub のランナー上で動き、そこには CLI が最初から入っている。
+
 ### デプロイはGitHub Actions側で行う
 
 このPCには Docker が無い（WSL2が動かず 2026-09-03 に導入を打ち切った）ため、
