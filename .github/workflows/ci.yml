@@ -238,7 +238,7 @@ jobs:
           "
       - name: 認証なしでは拒否されるか
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost/api/generate             -H "Content-Type: application/json" -d '{"review":{"reviewText":"テストです","rating":5}}')
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/generate             -H "Content-Type: application/json" -d '{"review":{"reviewText":"テストです","rating":5}}')
           test "$code" = "401" || { echo "401ではなく $code"; exit 1; }
       - name: 失敗時のログ
         if: failure()
