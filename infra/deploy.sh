@@ -2,6 +2,10 @@
 # イメージをビルドしてECRへpushし、ECSに新しいタスクを起動させる。
 #
 # 前提: terraform apply 済み / docker が動く / aws CLI が認証済み
+#
+# 注意: このPCにはDockerが無い（WSL2が動かず2026-09-03に導入を打ち切った）。
+#       その環境では代わりに GitHub Actions の "Deploy to AWS" ワークフローを使う。
+#       このスクリプトはDockerが動く環境向けに残してある。
 # 使い方: ./deploy.sh
 set -euo pipefail
 cd "$(dirname "$0")"

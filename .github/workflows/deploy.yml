@@ -1,0 +1,89 @@
+name: Deploy to AWS
+
+# ローカルにDockerが無いため、イメージのビルドとECRへのpushはここで行う。
+#
+# 自動実行(push: main)にしていない理由:
+#   $10予算のため、確認が済んだら毎回 terraform destroy でインフラを消す運用にしている。
+#   インフラが無い状態でmainにpushするたびに失敗が並ぶと、CIの赤が意味を持たなくなる。
+#   デプロイしたいときだけ手で回す。
+on:
+  workflow_dispatch:
+    inputs:
+      health_check:
+        description: "デプロイ後にタスクの公開IPへヘルスチェックする"
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write # OIDCトークンの発行に必要
+  contents: read
+
+jobs:
+  deploy:
+    name: ビルド → ECR push → ECS 再デプロイ
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 事前確認（設定漏れをここで止める）
+        run: |
+          if [ -z "${{ vars.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "リポジトリ変数 AWS_DEPLOY_ROLE_ARN が未設定。"
+            echo "terraform apply 後に 'terraform output -raw github_deploy_role_arn' の値を設定する。"
+            exit 1
+          fi
+
+      - name: AWSへのログイン（短命トークン。保存された鍵は使わない）
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+
+      - name: ECRへログイン
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: イメージをビルドしてpush
+        env:
+          DOCKER_BUILD_SUMMARY: "false"
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPO: ${{ vars.ECR_REPOSITORY || 'kuchikomi' }}
+        run: |
+          TAG=$(git rev-parse --short HEAD)
+          # latest はタスク定義が参照している可動先。$TAG は「今動いているのがどのコードか」を追うため
+          docker build --target runner \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key-for-build' }}" \
+            -t "$REGISTRY/$REPO:$TAG" -t "$REGISTRY/$REPO:latest" ./web
+          docker push "$REGISTRY/$REPO:$TAG"
+          docker push "$REGISTRY/$REPO:latest"
+          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: ECSに新しいタスクを起動させる
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER || 'kuchikomi' }}
+          SERVICE: ${{ vars.ECS_SERVICE || 'kuchikomi' }}
+        run: |
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --force-new-deployment --no-cli-pager >/dev/null
+          echo "新しいタスクが安定するまで待つ（数分）"
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
+      - name: 公開IPを調べてヘルスチェック
+        if: inputs.health_check
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER || 'kuchikomi' }}
+        run: |
+          TASK=$(aws ecs list-tasks --cluster "$CLUSTER" --query 'taskArns[0]' --output text)
+          ENI=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \
+            --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' --output text)
+          IP=$(aws ec2 describe-network-interfaces --network-interface-ids "$ENI" \
+            --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
+          echo "http://$IP:3000/api/health"
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 5 "http://$IP:3000/api/health"; then
+              echo; echo "デプロイ後の応答を確認（イメージ $IMAGE_TAG）"; exit 0
+            fi
+            sleep 5
+          done
+          echo "応答なし。SGの allowed_cidr がランナーのIPを許していない可能性がある"; exit 1

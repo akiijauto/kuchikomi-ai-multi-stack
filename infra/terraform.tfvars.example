@@ -11,3 +11,9 @@ anthropic_api_key = ""
 supabase_url              = ""
 supabase_anon_key         = ""
 supabase_service_role_key = ""
+
+# GitHub Actions からデプロイさせるリポジトリ（owner/name）
+github_repository = "akiijauto/kuchikomi-ai-multi-stack"
+
+# 同じAWSアカウントで既にGitHubのOIDCプロバイダを作ってある場合は false
+create_github_oidc_provider = true

@@ -38,7 +38,34 @@ terraform plan
 terraform apply
 ```
 
-イメージのビルド〜デプロイ〜状態確認は3つのスクリプトにまとめてある:
+### 初回だけ必要なこと（認証）
+
+Terraform を動かすには AWS の認証情報が要る。**このリポジトリには置かない**。
+
+```bash
+aws configure          # IAMユーザーのアクセスキーを ~/.aws/credentials に保存
+aws sts get-caller-identity   # 自分が誰として繋がっているかを確認
+```
+
+アクセスキーは AWS コンソールの `IAM → ユーザー → セキュリティ認証情報` で作る。
+**ルートユーザーのキーは作らない**（権限が強すぎ、制限もかけられないため）。
+
+### デプロイはGitHub Actions側で行う
+
+このPCには Docker が無い（WSL2が動かず 2026-09-03 に導入を打ち切った）ため、
+イメージのビルドと push はランナー上で行う。apply 後に一度だけ次を設定する:
+
+```bash
+terraform output -raw github_deploy_role_arn
+gh variable set AWS_DEPLOY_ROLE_ARN --body "<上の出力>"
+gh workflow run "Deploy to AWS"
+```
+
+長期のアクセスキーを GitHub Secrets に置かず、OIDC でその都度短命トークンを発行させている
+（`github_oidc.tf`）。保存する秘密が無いので、漏れる対象そのものが無い。
+
+イメージのビルド〜デプロイ〜状態確認は3つのスクリプトにまとめてある
+（`deploy.sh` は**Dockerが動く環境向け**。無い場合は上のワークフローを使う）:
 
 ```bash
 ./deploy.sh   # ビルド → ECRへpush → ECSに再デプロイ → 安定するまで待つ
@@ -60,3 +87,8 @@ RDSは**停止していてもストレージ課金が続く**ため、停止で�
 RDSは動いたままなので、確実なのは destroy。
 
 作業後に `Billing → Cost Explorer` で実際の課金額を確認する習慣をつける。
+
+`destroy` のあとに残るもの: ECRのイメージ（`force_delete = true` なので消える）、
+CloudWatch Logsのロググループ（`retention_in_days` の分だけ残るが無料枠内）、
+そして **OIDCプロバイダとIAMロール**（IAMは無料なので消さずに残してよい。
+残しておけば次回 apply したときに GitHub 側の設定を作り直さずに済む）。

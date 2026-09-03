@@ -40,3 +40,8 @@ output "app_url_hint" {
     → http://<IP>:3000/api/health
   EOT
 }
+
+output "github_deploy_role_arn" {
+  description = "GitHub Actions の deploy ワークフローに渡すロール。リポジトリ変数 AWS_DEPLOY_ROLE_ARN へ設定する"
+  value       = aws_iam_role.github_deploy.arn
+}
