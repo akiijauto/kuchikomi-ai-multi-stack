@@ -9,9 +9,9 @@
 VPC (10.0.0.0/16)
 ├─ パブリックサブネット × 2   ... RDSのサブネットグループが2AZ以上を要求するため
 ├─ Internet Gateway
-├─ ECS Fargate (0.25vCPU / 0.5GB)  ... パブリックIPを直付け
-├─ RDS PostgreSQL 16 (db.t4g.micro) ... アプリのSGからのみ到達可
-├─ ECR                              ... 直近3イメージのみ保持
+├─ ECS Fargate (0.25vCPU / 0.5GB) × 3サービス ... web / rails / go。パブリックIPを直付け
+├─ RDS PostgreSQL 16 (db.t4g.micro) ... アプリのSGからのみ到達可。3実装が同じDBを見る
+├─ ECR × 3                          ... 実装ごとに1つ。直近3イメージのみ保持
 ├─ S3                               ... パブリックアクセス4項目すべて遮断
 └─ CloudWatch Logs                  ... 保持3日
 ```
@@ -81,10 +81,24 @@ gh workflow run "Deploy to AWS"
 （`deploy.sh` は**Dockerが動く環境向け**。無い場合は上のワークフローを使う）:
 
 ```bash
-./deploy.sh   # ビルド → ECRへpush → ECSに再デプロイ → 安定するまで待つ
-./status.sh   # 動いているタスクのパブリックIPを調べてヘルスチェック
+./deploy.sh   # ビルド → ECRへpush → ECSに再デプロイ → 安定するまで待つ（web のみ）
+./status.sh          # web / rails / go の3つをまとめて確認
+./status.sh go       # 1つだけ確認
 ./logs.sh     # CloudWatch Logs を追う（起動しないときの一次切り分け）
 ```
+
+デプロイ対象は3つある。ワークフローの `component` で選ぶ:
+
+```bash
+gh workflow run "Deploy to AWS" -f component=web
+gh workflow run "Deploy to AWS" -f component=rails
+gh workflow run "Deploy to AWS" -f component=go
+```
+
+`rails` と `go` は**RDSへ外から接続できない**ため、スキーマの投入をコンテナ自身が行う
+（`LOAD_SCHEMA=1`）。ワークフローが `docker build` の直前に、SQLの正本
+（`db/init/` と `web/supabase/`）を各イメージのビルドコンテキストへコピーする。
+リポジトリに複製は残さない。
 
 ALBを置いていないため**タスクの再起動ごとにIPが変わる**。`status.sh` は
 ECS→ENI→EC2 と3つのAPIを辿ってIPを出す（手作業だと毎回面倒なため）。

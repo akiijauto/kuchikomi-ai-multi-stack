@@ -41,6 +41,8 @@ public/demo.html       ブラウザから試せるデモ画面
 | `PORT` | | `8080` | 待ち受けポート |
 | `PUBLIC_DIR` | | `public` | 静的ファイルの場所 |
 | `DEMO_MODE` | | 空 | `1` のときだけデモ用トークンの口が生える |
+| `LOAD_SCHEMA` | | 空 | `1` のとき、起動前に `BOOTSTRAP_DIR` の `*.sql` を適用する |
+| `BOOTSTRAP_DIR` | | `db/bootstrap` | 適用するSQLの置き場所 |
 | `ANTHROPIC_API_KEY` | | 空 | 無ければデモ返信（`mock: true`）を返す |
 | `GENERATION_MODEL` | | `claude-sonnet-4-6` | 他の2実装と同じ既定値 |
 
@@ -57,6 +59,12 @@ go run ./cmd/api
 スキーマは `db/init/00_supabase_compat.sql` → `web/supabase/schema.sql` の順に流し込む。
 **Go側にマイグレーションは無い。** 表の定義の正本は `web/supabase/schema.sql` のままで、
 同じ定義に別言語の実装を載せるのがこの演習の主旨。
+
+AWS上ではRDSに外から接続できない（`publicly_accessible = false`、踏み台もALBも無い）ため、
+**スキーマの投入はこのアプリ自身が行う**。`LOAD_SCHEMA=1` で起動すると
+`BOOTSTRAP_DIR` の `*.sql` をファイル名順に適用してからサーバーを開く
+（`internal/store/bootstrap.go`）。SQLの正本は複製せず、ビルドの直前に
+`api-go/db/bootstrap/` へコピーする運用（CI・デプロイのワークフローがやる）。
 
 ## テスト
 
@@ -78,3 +86,18 @@ docker run --rm -p 8080:8080 -e DATABASE_URL=... -e SUPABASE_JWT_SECRET=... kuch
 実行イメージは `gcr.io/distroless/static-debian12:nonroot`。シェルもパッケージマネージャも
 入っていないので、`docker exec app id -u` のような確認はできない（`docker inspect` で見る）。
 死活監視も `curl` が無いため、バイナリ自身に自分を叩かせている（`/app/api -healthcheck`）。
+
+## AWS へのデプロイ
+
+構成は `infra/ecs_go.tf`（ECR / SSM / タスク定義 / サービス）。
+VPC・RDS・ロググループ・IAM実行ロールは Next.js版・Rails版と共用で、
+3実装が**同じRDSの同じスキーマ**を見て同時に動く。
+
+```bash
+gh workflow run "Deploy to AWS" -f component=go   # ビルド → ECR push → ECS 再デプロイ
+./infra/status.sh go                              # 公開IPを調べてヘルスチェック
+```
+
+セキュリティグループが開けているのは 3000 番だけなので、タスク定義では `PORT=3000` を渡す
+（ローカルとCIでは 8080）。ECSのヘルスチェックはシェルが無いため
+`["CMD", "/app/api", "-healthcheck"]` の exec 形式にしてある。

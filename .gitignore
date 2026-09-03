@@ -30,3 +30,4 @@ api-rails/storage/*
 
 # ビルド時に取り込む（正本は db/init と web/supabase）
 api-rails/db/bootstrap/*.sql
+api-go/db/bootstrap/*.sql

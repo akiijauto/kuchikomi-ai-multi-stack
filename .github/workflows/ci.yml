@@ -307,12 +307,15 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kuchikomi
     steps:
       - uses: actions/checkout@v7
-      - name: スキーマを流し込む
-        # Rails版はRDSへ外から繋げないためコンテナ自身に流させたが、
-        # Go版はまだAWSへ載せていないので、ここでは素直に外から流す。
+      - name: スキーマ定義をビルドコンテキストへ取り込む
+        # 本番と同じ経路にする。RDSは外部から接続できないため、
+        # psqlで流すのではなくコンテナ自身に流させる（LOAD_SCHEMA=1）。
+        # SQLの正本は複製せず、ビルドの直前にコピーするだけ。
         run: |
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/init/00_supabase_compat.sql
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f web/supabase/schema.sql
+          mkdir -p api-go/db/bootstrap
+          cp db/init/00_supabase_compat.sql api-go/db/bootstrap/00_supabase_compat.sql
+          cp web/supabase/schema.sql        api-go/db/bootstrap/10_schema.sql
+          ls -l api-go/db/bootstrap
       - uses: docker/setup-buildx-action@v3
       - name: イメージをビルド
         env:
@@ -331,6 +334,7 @@ jobs:
           docker run -d --name go-api --network host \
             -e PORT=8080 \
             -e DEMO_MODE=1 \
+            -e LOAD_SCHEMA=1 \
             -e SUPABASE_JWT_SECRET=ci-demo-secret \
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kuchikomi \
             kuchikomi-go:ci
@@ -341,6 +345,12 @@ jobs:
             sleep 2
           done
           echo "60秒待っても応答なし。ログ:"; docker logs go-api; exit 1
+      - name: 起動時にスキーマが投入されたか（コンテナ自身が流す経路）
+        run: |
+          tables=$(psql "$DATABASE_URL" -tAc "select count(*) from information_schema.tables where table_schema='public' and table_name in ('profiles','usage_logs','plan_limits');")
+          test "$tables" = "3" || { echo "3表が揃っていない（$tables）"; exit 1; }
+          psql "$DATABASE_URL" -tAc "select proname from pg_proc where proname='increment_usage';" | grep -q increment_usage
+          echo "3表と上限チェック関数を確認"
       - name: 非rootで動いているか
         # 実行イメージにシェルが無いので `docker exec ... id -u` は使えない。
         # それがこの構成の狙いなので、設定のほうを見る。

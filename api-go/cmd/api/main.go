@@ -59,6 +59,19 @@ func run(log *slog.Logger) error {
 	}
 	defer st.Close()
 
+	// RDSは外部から接続できないため、スキーマの投入はこのコンテナ自身が行う。
+	// 明示的に LOAD_SCHEMA=1 を渡したときだけ走らせる（毎回流す必要はないので既定は無効）。
+	if os.Getenv("LOAD_SCHEMA") == "1" {
+		dir := bootstrapDir()
+		log.Info("スキーマを投入する", "dir", dir, "files", store.SchemaFiles(dir))
+		loadCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := st.LoadSchema(loadCtx, dir); err != nil {
+			return err
+		}
+		log.Info("スキーマの投入が完了")
+	}
+
 	gen := newGenerator(log)
 
 	srv := &http.Server{
@@ -119,6 +132,13 @@ func publicDir() string {
 		return d
 	}
 	return "public"
+}
+
+func bootstrapDir() string {
+	if d := os.Getenv("BOOTSTRAP_DIR"); d != "" {
+		return d
+	}
+	return "db/bootstrap"
 }
 
 // runHealthcheck は自分自身の /api/health を叩く。終了コードだけが結果。

@@ -55,3 +55,13 @@ output "rails_ecs_service" {
   description = "Rails API のECSサービス名"
   value       = aws_ecs_service.rails.name
 }
+
+output "go_ecr_repository_url" {
+  description = "Go API の docker push 先"
+  value       = aws_ecr_repository.go.repository_url
+}
+
+output "go_ecs_service" {
+  description = "Go API のECSサービス名"
+  value       = aws_ecs_service.go.name
+}

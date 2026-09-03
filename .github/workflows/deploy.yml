@@ -12,7 +12,7 @@ on:
       component:
         description: "デプロイ対象"
         type: choice
-        options: [rails, web]
+        options: [rails, go, web]
         default: rails
       health_check:
         description: "デプロイ後にタスクの公開IPへヘルスチェックする"
@@ -48,15 +48,18 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Railsイメージへスキーマ定義を取り込む
-        if: inputs.component == 'rails'
+      - name: イメージへスキーマ定義を取り込む（rails / go）
+        if: inputs.component != 'web'
         # SQLの正本は1箇所（db/init と web/supabase）に置いたまま、
         # ビルドコンテキストへコピーするだけにする。リポジトリには複製を残さない。
+        # RDSは外部から接続できないので、投入はコンテナ自身が LOAD_SCHEMA=1 で行う。
+        env:
+          DEST: api-${{ inputs.component }}/db/bootstrap
         run: |
-          mkdir -p api-rails/db/bootstrap
-          cp db/init/00_supabase_compat.sql api-rails/db/bootstrap/00_supabase_compat.sql
-          cp web/supabase/schema.sql        api-rails/db/bootstrap/10_schema.sql
-          ls -l api-rails/db/bootstrap
+          mkdir -p "$DEST"
+          cp db/init/00_supabase_compat.sql "$DEST/00_supabase_compat.sql"
+          cp web/supabase/schema.sql        "$DEST/10_schema.sql"
+          ls -l "$DEST"
 
       - name: イメージをビルドしてpush
         env:
@@ -70,6 +73,9 @@ jobs:
           if [ "$COMPONENT" = "rails" ]; then
             REPO="${BASE}-rails"
             docker build -t "$REGISTRY/$REPO:$TAG" -t "$REGISTRY/$REPO:latest" ./api-rails
+          elif [ "$COMPONENT" = "go" ]; then
+            REPO="${BASE}-go"
+            docker build -t "$REGISTRY/$REPO:$TAG" -t "$REGISTRY/$REPO:latest" ./api-go
           else
             REPO="$BASE"
             docker build --target runner               --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}"               --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key-for-build' }}"               -t "$REGISTRY/$REPO:$TAG" -t "$REGISTRY/$REPO:latest" ./web
@@ -81,7 +87,7 @@ jobs:
       - name: ECSに新しいタスクを起動させる
         env:
           CLUSTER: ${{ vars.ECS_CLUSTER || 'kuchikomi' }}
-          SERVICE: ${{ inputs.component == 'rails' && format('{0}-rails', vars.ECS_SERVICE || 'kuchikomi') || (vars.ECS_SERVICE || 'kuchikomi') }}
+          SERVICE: ${{ inputs.component == 'web' && (vars.ECS_SERVICE || 'kuchikomi') || format('{0}-{1}', vars.ECS_SERVICE || 'kuchikomi', inputs.component) }}
         run: |
           aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
             --force-new-deployment --no-cli-pager >/dev/null
@@ -92,7 +98,7 @@ jobs:
         if: inputs.health_check
         env:
           CLUSTER: ${{ vars.ECS_CLUSTER || 'kuchikomi' }}
-          SERVICE: ${{ inputs.component == 'rails' && format('{0}-rails', vars.ECS_SERVICE || 'kuchikomi') || (vars.ECS_SERVICE || 'kuchikomi') }}
+          SERVICE: ${{ inputs.component == 'web' && (vars.ECS_SERVICE || 'kuchikomi') || format('{0}-{1}', vars.ECS_SERVICE || 'kuchikomi', inputs.component) }}
         run: |
           TASK=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --query 'taskArns[0]' --output text)
           ENI=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \

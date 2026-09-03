@@ -26,8 +26,13 @@ WORKDIR /app
 
 COPY --from=build /out/api /app/api
 COPY public /app/public
+# スキーマ定義（LOAD_SCHEMA=1 のとき起動時に適用する）。
+# SQLの正本は複製せず、ビルドの直前にコンテキストへコピーする運用にしてある。
+# コピーされていなければ README だけが入り、起動時に「SQLが無い」で止まる。
+COPY db/bootstrap /app/db/bootstrap
 
 ENV PUBLIC_DIR=/app/public \
+    BOOTSTRAP_DIR=/app/db/bootstrap \
     PORT=8080
 
 USER nonroot:nonroot
