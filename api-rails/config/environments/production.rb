@@ -18,11 +18,17 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Assume all access to the app is happening through a SSL-terminating reverse proxy.
-  config.assume_ssl = true
+  # 既定はSSL必須のままにする。ただしこの学習用構成にはTLS終端が無い
+  # （$10予算のためロードバランサを置いていない）。HTTPで動作確認する場合は
+  # RAILS_FORCE_SSL=false を渡す。既定値を書き換えないのは、
+  # 「うっかり本番でSSLが切れている」状態を作らないため。
+  ssl_enabled = ENV.fetch("RAILS_FORCE_SSL", "true") == "true"
+  config.assume_ssl = ssl_enabled
+  config.force_ssl = ssl_enabled
 
-  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  config.force_ssl = true
+  # public/ の静的ファイルを自分で配信する（デモページを置いてあるため）。
+  # 実務ではCDNや前段のnginxに任せることが多い。
+  config.public_file_server.enabled = true
 
   # Skip http-to-https redirect for the default health check endpoint.
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
