@@ -13,8 +13,11 @@ module AuthHelper
     ActiveRecord::Base.connection.execute(
       "insert into auth.users (id, email) values ('#{id}', '#{id}@example.test')"
     )
-    Profile.create!(
-      id: id, store_name: store_name, industry: "飲食店",
+    # auth.users への挿入で on_auth_user_created トリガーが走り、
+    # profiles の行は既に作られている（schema.sql の handle_new_user）。
+    # ここで create! すると主キー重複になる。作るのではなく、その行を更新する。
+    Profile.find(id).update!(
+      store_name: store_name, industry: "飲食店",
       tone: tone, signature: signature, plan: plan
     )
     id
