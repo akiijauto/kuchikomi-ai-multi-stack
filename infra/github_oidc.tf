@@ -25,9 +25,14 @@ variable "github_owner_id" {
 }
 
 variable "github_repository_id" {
-  description = "GitHubのリポジトリID（数値）"
+  description = <<-EOT
+    GitHubのリポジトリID（数値）。OIDCの信頼条件（新形式のsub）で使う。
+    リポジトリを作り直すとIDが変わり、古い値のままだとデプロイが
+    「AssumeRoleできない」で落ちる（2026-09-04にpublic化のため作り直して実際に変わった）。
+    調べ方: gh api repos/<owner>/<repo> --jq .id
+  EOT
   type        = string
-  default     = "1352683534"
+  default     = "1357024739"
 }
 
 locals {
