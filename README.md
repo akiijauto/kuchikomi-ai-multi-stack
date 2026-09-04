@@ -15,7 +15,7 @@
 | 2 | AWS | 完了。apply → デプロイ → 動作確認 → destroy を2周し、残存ゼロを実測 |
 | 3 | CI/CD (GitHub Actions) | 完了。CI 9ジョブ＋ OIDC による AWS 自動デプロイ |
 | 4 | Ruby on Rails | 完了。既存APIを再実装し、コンテナ化してAWSで稼働・デモ画面まで確認 |
-| 5 | Go | 実装・テスト・CI 完了（`api-go/`）。AWS構成（`infra/ecs_go.tf`）も実装済みで validate 通過。**apply は未実行** |
+| 5 | Go | 完了。`api-go/` を実装しCIへ組み込み、AWSでNext.js版・Rails版と**3実装同時稼働**まで確認して destroy 済み |
 | 6 | 棚卸し | 未着手 |
 
 ## 構成

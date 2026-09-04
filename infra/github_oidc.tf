@@ -126,7 +126,13 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer",
     ]
-    resources = [aws_ecr_repository.app.arn, aws_ecr_repository.rails.arn]
+    # 実装を増やしたらここにも足す。足し忘れると push だけが denied になり、
+    # ビルドは通るのでログの最後まで読まないと気づけない（2026-09-04にGo版で実際に踏んだ）。
+    resources = [
+      aws_ecr_repository.app.arn,
+      aws_ecr_repository.rails.arn,
+      aws_ecr_repository.go.arn,
+    ]
   }
 
   # タスク定義は latest を参照している。新しい latest を引かせるには
@@ -138,7 +144,11 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecs:UpdateService",
       "ecs:DescribeServices",
     ]
-    resources = [aws_ecs_service.app.id, aws_ecs_service.rails.id]
+    resources = [
+      aws_ecs_service.app.id,
+      aws_ecs_service.rails.id,
+      aws_ecs_service.go.id,
+    ]
   }
 
   statement {
